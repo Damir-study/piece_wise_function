@@ -24,7 +24,7 @@ DEBUG_TARGET = piecewise_debug
 RELEASE_TARGET = piecewise_release
 TEST_TARGET = piecewise_test.exe
 
-SOURCES = main.cpp
+SOURCES = main.cpp projectile_task.cpp
 TEST_SOURCES = tests.cpp
 
 # Template implementation files
@@ -39,7 +39,7 @@ TEMPLATE_FILES = interval.tpp function_piece.tpp piecewise_function.tpp \
                  sequence/list_sequence.tpp sequence/sequence_functions.tpp
 
 # Header files
-HEADERS = function.h interval.h function_piece.h piecewise_function.h \
+HEADERS = function.h interval.h function_piece.h piecewise_function.h projectile_task.h \
           functions/power_function.h functions/exponential_function.h \
           functions/logarithm_function.h functions/sine_function.h \
           functions/cosine_function.h \
@@ -62,11 +62,14 @@ gtest-all.o:
 gtest_main.o:
 	$(CXX) -std=$(CXXSTD) $(GTEST_INC) -c $(GTEST_DIR)/src/gtest_main.cc
 
+projectile_task.o: projectile_task.cpp projectile_task.h $(HEADERS) $(TEMPLATE_FILES)
+	$(CXX) -std=$(CXXSTD) $(INCLUDE_FLAGS) -c projectile_task.cpp
+
 tests.o: $(TEST_DEPS)
 	$(CXX) -std=$(CXXSTD) $(GTEST_INC) -c $(TEST_SOURCES)
 
-$(TEST_TARGET): tests.o gtest-all.o gtest_main.o
-	$(CXX) tests.o gtest-all.o gtest_main.o -o $(TEST_TARGET) -lpthread
+$(TEST_TARGET): tests.o projectile_task.o gtest-all.o gtest_main.o
+	$(CXX) tests.o projectile_task.o gtest-all.o gtest_main.o -o $(TEST_TARGET) -lpthread
 
 # Default target
 all: debug release

@@ -6,6 +6,7 @@
 #include "function_piece.h"
 #include "piecewise_function.h"
 #include "function.h"
+#include "projectile_task.h"
 
 #include "functions/power_function.h"
 #include "functions/exponential_function.h"
@@ -24,6 +25,22 @@ TEST(interval_test, invalid_bounds_throw) {
     interval<double> inter(1.0, 3.0);
     EXPECT_THROW(inter.set_left(4.0), std::invalid_argument);
     EXPECT_THROW(inter.set_right(0.0), std::invalid_argument);
+}
+
+TEST(interval_test, intersection_respects_open_and_closed_bounds) {
+    interval<double> left(0.0, 1.0, true, false);
+    interval<double> right(1.0, 2.0, true, true);
+    interval<double> overlap_a(0.0, 2.0, true, true);
+    interval<double> overlap_b(1.0, 3.0, true, false);
+
+    EXPECT_FALSE(left.intersects(right));
+    EXPECT_TRUE(overlap_a.intersects(overlap_b));
+
+    interval<double> inter = overlap_a.get_intersection(overlap_b);
+    EXPECT_DOUBLE_EQ(inter.get_left(), 1.0);
+    EXPECT_DOUBLE_EQ(inter.get_right(), 2.0);
+    EXPECT_TRUE(inter.left_included());
+    EXPECT_TRUE(inter.right_included());
 }
 
 TEST(power_function_test, basic_behavior) {
@@ -48,6 +65,18 @@ TEST(exponential_and_logarithm_test, domains_and_monotonicity) {
     EXPECT_FALSE(log_f.is_continuous_on(interval<double>(0.0, 1.0, true, true)));
     EXPECT_EQ(log_f.get_monotonicity_on(interval<double>(0.5, 8.0)), monotonicity_type::increasing);
     EXPECT_EQ(log_f.get_monotonicity_on(interval<double>(-1.0, 8.0)), monotonicity_type::undefined);
+}
+
+TEST(exponential_and_logarithm_test, special_cases) {
+    exponential_function<double, double> constant_exp(1.0);
+    logarithm_function<double, double> decreasing_log(0.5);
+
+    EXPECT_DOUBLE_EQ(constant_exp.calculate(10.0), 1.0);
+    EXPECT_EQ(constant_exp.get_monotonicity_on(interval<double>(-2.0, 3.0)),
+              monotonicity_type::constant);
+
+    EXPECT_EQ(decreasing_log.get_monotonicity_on(interval<double>(0.25, 4.0)),
+              monotonicity_type::decreasing);
 }
 
 TEST(trigonometric_function_test, monotonicity) {
@@ -80,6 +109,11 @@ TEST(function_piece_test, calculate_and_copy) {
 
     function_piece<double, double> copied(piece);
     EXPECT_DOUBLE_EQ(copied.calculate(2.0), 8.0);
+}
+
+TEST(function_piece_test, empty_piece_throws) {
+    function_piece<double, double> piece;
+    EXPECT_THROW(piece.calculate(0.0), std::logic_error);
 }
 
 TEST(piecewise_function_test, empty_state) {
@@ -210,6 +244,16 @@ TEST(piecewise_function_test, monotonicity_across_pieces) {
               monotonicity_type::increasing);
 }
 
+TEST(piecewise_function_test, calculate_throws_inside_gap) {
+    piecewise_function<double, double> func;
+    power_function<double, double> part(1);
+
+    func.override_on(interval<double>(0.0, 1.0, true, true), part);
+    func.override_on(interval<double>(3.0, 4.0, true, true), part);
+
+    EXPECT_THROW(func.calculate(2.0), std::out_of_range);
+}
+
 TEST(piecewise_function_test, getters_return_correct_piece_data) {
     piecewise_function<double, double> func;
     power_function<double, double> first(1);
@@ -228,4 +272,47 @@ TEST(piecewise_function_test, getters_return_correct_piece_data) {
     ASSERT_NE(extracted, nullptr);
     EXPECT_DOUBLE_EQ(extracted->calculate(3.0), 9.0);
     delete extracted;
+}
+
+TEST(projectile_task_test, solve_finds_valid_speed_and_angle) {
+    mutable_array_sequence<double> allowed_speeds;
+    allowed_speeds.append(5.0);
+    allowed_speeds.append(10.0);
+    allowed_speeds.append(20.0);
+
+    projectile_solution result = solve_projectile_task(&allowed_speeds, 8.0, 8.5);
+
+    ASSERT_TRUE(result.found);
+    EXPECT_DOUBLE_EQ(result.initial_speed, 10.0);
+    EXPECT_LE(8.0, result.hit_x);
+    EXPECT_LE(result.hit_x, 8.5);
+
+    projectile_range_function range_function(result.initial_speed);
+    EXPECT_NEAR(range_function.calculate(result.launch_angle), result.hit_x, 1e-5);
+    EXPECT_NEAR(result.launch_angle,
+                analytic_low_angle(result.initial_speed, result.hit_x),
+                1e-4);
+}
+
+TEST(projectile_task_test, analytic_high_angle_matches_same_range) {
+    double speed = 12.0;
+    double target_x = 10.0;
+
+    double low_angle = analytic_low_angle(speed, target_x);
+    double high_angle = analytic_high_angle(speed, target_x);
+    projectile_range_function range_function(speed);
+
+    EXPECT_LT(low_angle, high_angle);
+    EXPECT_NEAR(range_function.calculate(low_angle), target_x, 1e-9);
+    EXPECT_NEAR(range_function.calculate(high_angle), target_x, 1e-9);
+}
+
+TEST(projectile_task_test, solve_returns_not_found_for_unreachable_target) {
+    mutable_array_sequence<double> allowed_speeds;
+    allowed_speeds.append(2.0);
+    allowed_speeds.append(3.0);
+
+    projectile_solution result = solve_projectile_task(&allowed_speeds, 20.0, 25.0);
+
+    EXPECT_FALSE(result.found);
 }

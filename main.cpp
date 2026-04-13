@@ -3,6 +3,7 @@
 #include <string>
 
 #include "piecewise_function.h"
+#include "projectile_task.h"
 #include "functions/power_function.h"
 #include "functions/exponential_function.h"
 #include "functions/logarithm_function.h"
@@ -187,6 +188,30 @@ function<double, double>* create_function_from_user() {
     }
 }
 
+sequence<double>* create_speed_sequence_from_user() {
+    std::cout << "How many allowed speeds do you want to enter? ";
+    int count = get_int();
+
+    if (count < 0) {
+        throw std::invalid_argument("Speed count must not be negative");
+    }
+
+    sequence<double>* speeds = new mutable_array_sequence<double>();
+
+    try {
+        for (int i = 0; i < count; ++i) {
+            std::cout << "Enter speed " << i << ": ";
+            speeds->append(get_double());
+        }
+    }
+    catch (...) {
+        delete speeds;
+        throw;
+    }
+
+    return speeds;
+}
+
 int main() {
     try {
         std::cout << "Select internal storage for piecewise function:\n"
@@ -211,6 +236,7 @@ int main() {
             std::cout << "1) Elementary (piece count, list pieces, get piece)\n";
             std::cout << "2) Transformations (override on interval)\n";
             std::cout << "3) Analysis (value, definedness, continuity, monotonicity)\n";
+            std::cout << "4) Projectile task\n";
             std::cout << "0) Exit\n";
             std::cout << "Choose a category: ";
 
@@ -345,6 +371,70 @@ int main() {
                                 std::cout << "Monotonicity on ";
                                 print_interval(inter);
                                 std::cout << ": " << monotonicity_to_string(result) << "\n";
+                                break;
+                            }
+                            default:
+                                std::cout << "Invalid action choice.\n";
+                                break;
+                        }
+                        break;
+                    }
+
+                    case 4: {
+                        std::cout << "\n--- Projectile Task ---\n";
+                        std::cout << "1) Solve for allowed speeds and target interval\n";
+                        std::cout << "2) Analytic angles for a chosen speed and target\n";
+                        std::cout << "0) Back to main menu\n";
+                        std::cout << "Choose an action: ";
+
+                        int action = get_int();
+                        if (action == 0) {
+                            break;
+                        }
+
+                        switch (action) {
+                            case 1: {
+                                sequence<double>* speeds = create_speed_sequence_from_user();
+
+                                try {
+                                    std::cout << "Enter target interval left bound x1: ";
+                                    double x1 = get_double();
+                                    std::cout << "Enter target interval right bound x2: ";
+                                    double x2 = get_double();
+
+                                    projectile_solution solution = solve_projectile_task(speeds, x1, x2);
+
+                                    if (!solution.found) {
+                                        std::cout << "No solution was found for the given speeds.\n";
+                                    } else {
+                                        std::cout << "Solution found:\n";
+                                        std::cout << "Initial speed v0 = " << solution.initial_speed << "\n";
+                                        std::cout << "Launch angle alpha = " << solution.launch_angle << "\n";
+                                        std::cout << "Hit point x = " << solution.hit_x << "\n";
+                                        std::cout << "Analytic low angle = "
+                                                  << analytic_low_angle(solution.initial_speed, solution.hit_x) << "\n";
+                                        std::cout << "Analytic high angle = "
+                                                  << analytic_high_angle(solution.initial_speed, solution.hit_x) << "\n";
+                                    }
+                                }
+                                catch (...) {
+                                    delete speeds;
+                                    throw;
+                                }
+
+                                delete speeds;
+                                break;
+                            }
+                            case 2: {
+                                std::cout << "Enter initial speed v0: ";
+                                double speed = get_double();
+                                std::cout << "Enter target x: ";
+                                double target_x = get_double();
+
+                                std::cout << "Analytic low angle = "
+                                          << analytic_low_angle(speed, target_x) << "\n";
+                                std::cout << "Analytic high angle = "
+                                          << analytic_high_angle(speed, target_x) << "\n";
                                 break;
                             }
                             default:
